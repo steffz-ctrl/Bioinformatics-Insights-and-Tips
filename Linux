@@ -1,0 +1,83 @@
+# STEP 0: Create the initial files first
+touch homework.txt
+touch grades.txt
+
+# Now add some content to homework.txt so we can copy it later
+nano homework.txt
+# Type: "This is my homework file"
+# Type: "I am learning Linux commands"
+# Ctrl+O to save, Ctrl+X to exit
+
+# 1. Try to copy a non-existent file (shows error)
+cp notes.txt
+
+# 2. Copy homework.txt to backup.txt
+cp homework.txt backup.txt
+
+# 3. View contents of backup.txt
+cat backup.txt
+
+# 4. Check file type of 'draft' (doesn't exist - error)
+file draft
+
+# 5. Check file type of grades.txt
+file grades.txt
+
+# 6. Check file type of backup.txt
+file backup.txt
+
+# 7. Find grades.txt
+find grades.txt
+
+# 8. Open grades.txt in nano editor (ADD CONTENT HERE)
+nano grades.txt
+# Type multiple lines like:
+# This is my grades file
+# I need to add more content
+# Adding another line here
+# Keep adding lines
+# Maybe 8-10 lines total
+# Then Ctrl+O to save, Ctrl+X to exit
+
+# 9. View first 10 lines of grades.txt
+head grades.txt
+
+# 10. Open grades.txt in less viewer (press q to exit)
+less grades.txt
+
+# 11. Create empty file called 'report'
+touch report
+
+# 12. List all files
+ls
+
+# 13. Check file type of report (empty)
+file report
+
+# 14. Create schedule.txt
+touch schedule.txt
+
+# 15. List files again
+ls
+
+# 16. View schedule.txt contents (empty at first)
+cat schedule.txt
+
+# 17. Edit schedule.txt in nano (ADD CONTENT HERE)
+nano schedule.txt
+# Type several lines like:
+# Monday: Class at 9am
+# Tuesday: Study session
+# Wednesday: Assignment due
+# Add more lines here
+# Keep going until satisfied
+# Ctrl+O to save, Ctrl+X to exit
+
+# 18. View schedule.txt contents (now has your text)
+cat schedule.txt
+
+# 19. Rename schedule.txt to schedule_final.txt
+mv schedule.txt schedule_final.txt
+
+# 20. List files to confirm rename
+ls
