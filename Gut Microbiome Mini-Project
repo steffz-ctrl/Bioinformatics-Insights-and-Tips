@@ -1,0 +1,214 @@
+#Installing dada2 through BioCManager
+BiocManager::install("dada2")
+
+library(dada2)
+test_data<-"C:\\Users\\hp\\OneDrive\\Documents\\ENEZA Data Science\\test_data" 
+list.files(test_data)
+
+#Sorting the data into forward and reverse reads
+df <- sort(list.files(test_data, pattern="_R1_001.fastq.gz", full.names = TRUE))
+df
+
+df1 <- sort(list.files(test_data, pattern="_R2_001.fastq.gz", full.names = TRUE))
+df1
+
+#Specify sample names for the dataset
+list.sample.names <- sapply(strsplit(basename(df1), "_"), `[`, 2) 
+list.sample.names
+
+plotQualityProfile(df1[1:5])
+plotQualityProfile(df[1:5])
+
+#Primer Identification
+library(ShortRead)
+library(Biostrings)
+library(stringr)
+
+fwd_primer <- "CCTACGGGNGGCWGCAG"
+rev_primer <- "GACTACHVGGGTATCTAATCC"
+
+#Function for creating all the possible orientations of these primers
+allOrients <- function(primer) {
+  require(Biostrings)
+  dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+  orients <- c(Forward = dna, Complement = Biostrings::complement(dna), Reverse = reverse(dna), 
+               RevComp = reverseComplement(dna))
+  return(sapply(orients, toString))  # Convert back to character vector
+}
+
+# creating all the possible orientations using our forward and reverse primers
+
+fwd_primer_orients <- allOrients(fwd_primer)
+fwd_primer_orients
+
+rev_primer_orients <- allOrients(rev_primer)
+rev_primer_orients
+
+ fwd_primer_rev <- as.character(reverseComplement(DNAStringSet(fwd_primer))) # reverse complement of the primers
+fwd_primer_rev
+
+rev_primer_rev <- as.character(reverseComplement(DNAStringSet(rev_primer)))
+rev_primer_rev
+
+# Function for counting the number of reads containing our primer orientations 
+count_primers <- function(primer, filename) {
+  num_hits <- vcountPattern(primer, sread(readFastq(filename)), fixed = FALSE)
+  return(sum(num_hits > 0))
+}
+# counting the sequence strings with primers from our data 
+rbind(
+  R1_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = df[[1]]),
+  R2_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = df[[1]]),
+  R1_rev_primer = sapply(rev_primer_orients, count_primers, filename = df[[1]]),
+  R2_rev_primer = sapply(rev_primer_orients, count_primers, filename = df[[1]])
+)
+
+rbind(
+  R1_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = df1[[1]]),
+  R2_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = df1[[1]]),
+  R1_rev_primer = sapply(rev_primer_orients, count_primers, filename = df1[[1]]),
+  R2_rev_primer = sapply(rev_primer_orients, count_primers, filename = df1[[1]]))
+
+#Primer Trimming
+
+#specifying the path to cutadapt on the server
+cutadapt <- "C:/Users/hp/AppData/Local/Programs/Python/Python314/Scripts/cutadapt.exe"
+system2(cutadapt, args = "--version")
+
+base_path <- "C:/Users/hp/OneDrive/Documents/ENEZA Data Science/test_data"
+
+#Creating an output directory to store the trimmed files and specifying the names of the samples
+cut_dir <- file.path("C:/Users/hp/OneDrive/Documents/ENEZA Data Science/test_data", "cutadapt")
+if (!dir.exists(cut_dir)) dir.create(cut_dir)
+
+#creates a file path for the cutadapted reads within the cut_dir
+fwd_cut <- file.path(cut_dir, basename(df)) 
+rev_cut <- file.path(cut_dir, basename(df1))
+
+names(fwd_cut) <- list.sample.names
+head(fwd_cut)
+
+names(rev_cut) <- list.sample.names
+head(rev_cut)
+
+#Function for creating cutadapt trimming log files
+cut_logs <- path.expand(file.path(cut_dir, paste0(list.sample.names, ".log")))
+
+#Function specifying the cutadapt functions to be used in this analysis
+cutadapt_args <- c("-g", fwd_primer, "-a", rev_primer_rev, 
+                   "-G", rev_primer, "-A", fwd_primer_rev,
+                   "-n", 2,"-m",1, "-j",32, "--discard-untrimmed") 
+
+# creating a loop over the list of files and running cutadapt on each file.
+for (i in seq_along(df)) {
+  system2(cutadapt, 
+          args = c(cutadapt_args,
+                   "-o", fwd_cut[i], "-p", rev_cut[i], 
+                   df[i], df1[i]),
+          stdout = cut_logs[i])  
+}
+#Did not create output file
+#New code to run cutadapt
+for (i in seq_along(df)) {
+  system2(
+    cutadapt,
+    args = c(
+      cutadapt_args,
+      "-o", shQuote(fwd_cut[i]),
+      "-p", shQuote(rev_cut[i]),
+      shQuote(df[i]),
+      shQuote(df1[i])
+    ),
+    stdout = cut_logs[i],
+    stderr = cut_logs[i]
+  )
+}
+
+#Sanity check
+file.exists(dirname(cut_logs[1]))
+
+#Sanity check: checking for the presence of primers in the first cutadapt-ed sample.
+rbind(R1_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = fwd_cut[[1]]), 
+      R2_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = fwd_cut[[1]]), 
+      R1_rev_primer = sapply(rev_primer_orients, count_primers, filename = fwd_cut[[1]]), 
+       R2_rev_primer = sapply(rev_primer_orients, count_primers, filename = fwd_cut[[1]]))
+
+rbind(R1_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = rev_cut[[1]]), 
+      R2_fwd_primer = sapply(fwd_primer_orients, count_primers, filename = rev_cut[[1]]), 
+      R1_rev_primer = sapply(rev_primer_orients, count_primers, filename = rev_cut[[1]]), 
+      R2_rev_primer = sapply(rev_primer_orients, count_primers, filename = rev_cut[[1]]))
+
+#Plotting the quality plots again to determine the length to use while filtering reads
+plotQualityProfile(fwd_cut[1:5])
+
+plotQualityProfile(rev_cut[1:5])
+
+#Assigning where the filtered data will be stored
+filt.df <- file.path("C:\\Users\\hp\\OneDrive\\Documents\\ENEZA Data Science\\test_data", "filtered", paste0(list.sample.names, "_F_filt.fastq.gz"))
+filt.df1 <- file.path("C:\\Users\\hp\\OneDrive\\Documents\\ENEZA Data Science\\test_data", "filtered", paste0(list.sample.names, "_R_filt.fastq.gz"))
+
+#Defining the file names
+names(filt.df) <- list.sample.names
+head(filt.df)
+
+names(filt.df1) <- list.sample.names
+head(filt.df1)
+
+#Filtering and trimming data
+out <- filterAndTrim(fwd_cut, filt.df, rev_cut, filt.df1, truncLen=c(240,200),
+                     maxN=0, maxEE=c(2,5), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, multithread=TRUE)
+head(out)
+
+#Checking the quality of the plots after trimming for low quality bases
+plotQualityProfile(fwd_cut[1:5])
+
+plotQualityProfile(rev_cut[1:5])
+
+#Checking error rate
+errF <- learnErrors(filt.df, multithread=TRUE)
+errR <- learnErrors(filt.df1, multithread=TRUE)
+
+#Plotting error rates
+plotErrors(errF, nominalQ=TRUE)
+
+plotErrors(errR, nominalQ=TRUE)
+
+#Denoising
+dadaF <- dada(filt.df, err=errF, multithread=TRUE)
+dadaR <-dada(filt.df1, err=errR, multithread=TRUE)
+
+#Inspecting the resulting dada2 class object
+dadaF[[1]]
+
+dadaR[[1]]
+
+#merging the forward and reverse reads
+merge.reads <- mergePairs(dadaF, filt.df, dadaR, filt.df1, verbose=FALSE)
+head(merge.reads[[1]])
+tail(merge.reads[[1]])
+
+#Generating a sequence table
+seqtab <- makeSequenceTable(merge.reads)
+dim(seqtab)
+
+#Establishing the number of samples distributed per length
+table(nchar(getSequences(seqtab))) 
+
+#Removing Chimeras
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+
+dim(seqtab.nochim)
+
+#Establishing the percentage of non_chimeric reads
+sum(seqtab.nochim)/sum(seqtab)
+
+#Tracking the number of reads that passed the various steps in the pipeline
+getN <- function(x) sum(getUniques(x))
+track.nbr.reads <- cbind(out, sapply(dadaF, getN), sapply(dadaR, getN), sapply(merge.reads, getN), rowSums(seqtab.nochim))
+colnames(track.nbr.reads) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track.nbr.reads) <- list.sample.names
+head(track.nbr.reads)
+tail(track.nbr.reads)
+
+#Taxonomic classification
